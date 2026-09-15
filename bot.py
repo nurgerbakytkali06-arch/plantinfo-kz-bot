@@ -23,6 +23,9 @@ PORT = int(os.getenv("PORT", "10000"))
 
 BASE = Path(__file__).resolve().parent
 DATA_FILE = BASE / "data" / "plants_kk.json"
+if not DATA_FILE.exists():
+    DATA_FILE = BASE / "plants_kk.json"
+
 IMAGE_DIR = BASE / "images"
 DB_FILE = BASE / "translations.sqlite3"
 
@@ -173,8 +176,13 @@ def translated(plant: dict, lang: str):
 
 def image_for(plant_id: int):
     stem = f"plant_{plant_id:03d}"
-    matches = list(IMAGE_DIR.glob(stem + ".*"))
-    return matches[0] if matches else None
+    search_dirs = [IMAGE_DIR, BASE]
+    for folder in search_dirs:
+        if folder.exists():
+            matches = list(folder.glob(stem + ".*"))
+            if matches:
+                return matches[0]
+    return None
 
 
 def language_menu():
