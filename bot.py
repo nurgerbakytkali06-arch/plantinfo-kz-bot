@@ -7,7 +7,7 @@ from contextlib import suppress
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, FSInputFile
 from dotenv import load_dotenv
 
 try:
@@ -25,7 +25,6 @@ BASE = Path(__file__).resolve().parent
 DATA_FILE = BASE / "data" / "plants_kk.json"
 if not DATA_FILE.exists():
     DATA_FILE = BASE / "plants_kk.json"
-
 IMAGE_DIR = BASE / "images"
 DB_FILE = BASE / "translations.sqlite3"
 
@@ -61,7 +60,7 @@ TEXT = {
         "menu_back": "🏠 Негізгі мәзір",
         "search_help": "🔎 Өсімдіктің қазақша немесе латынша атауын жазыңыз:\nМысалы: Қарағайлы шырша",
         "not_found": "Өсімдік табылмады.",
-        "about_text": "Бұл бот берілген оқу материалдары негізінде 115 өсімдік туралы ақпаратты қарауға арналған.\n\nАвтор: ХБ-31",
+        "about_text": "Бұл бот берілген оқу материалдары негізінде 115 өсімдік туралы ақпаратты қарауға арналған.\n\nТоп: ХБ-31",
         "source": "Дереккөз: берілген оқу материалдары.",
         "no_text": "Бұл түр бойынша бастапқы материалда толық сипаттама мәтіні берілмеген.",
     },
@@ -81,7 +80,7 @@ TEXT = {
         "menu_back": "🏠 Главное меню",
         "search_help": "🔎 Введите казахское название или латинское название растения:\nНапример: Қарағайлы шырша",
         "not_found": "Растение не найдено.",
-        "about_text": "Этот бот предназначен для просмотра информации о 115 растениях на основе предоставленных учебных материалов.\n\nАвтор: ХБ-31",
+        "about_text": "Этот бот предназначен для просмотра информации о 115 растениях на основе предоставленных учебных материалов.\n\nТоп: ХБ-31",
         "source": "Источник: предоставленные учебные материалы.",
         "no_text": "В исходном материале нет полного текстового описания этого вида.",
     },
@@ -176,10 +175,10 @@ def translated(plant: dict, lang: str):
 
 def image_for(plant_id: int):
     stem = f"plant_{plant_id:03d}"
-    search_dirs = [IMAGE_DIR, BASE]
-    for folder in search_dirs:
-        if folder.exists():
-            matches = list(folder.glob(stem + ".*"))
+    dirs = [IMAGE_DIR, BASE]
+    for directory in dirs:
+        if directory.exists():
+            matches = sorted(directory.glob(stem + ".*"))
             if matches:
                 return matches[0]
     return None
@@ -247,8 +246,8 @@ async def send_plant(bot: Bot, chat_id: int, plant_id: int, lang: str):
     parts = list(chunks(text))
     img = image_for(plant_id)
     if img:
-        with img.open("rb") as f:
-            await bot.send_photo(chat_id, f, caption=parts[0][:1024], parse_mode="HTML")
+        photo = FSInputFile(img)
+        await bot.send_photo(chat_id, photo, caption=parts[0][:1024], parse_mode="HTML")
         for part in parts[1:]:
             await bot.send_message(chat_id, part, parse_mode="HTML")
     else:
