@@ -227,7 +227,8 @@ def plant_text(plant_id: int, lang: str):
     name, body = translated(plant, lang)
     if not body.strip():
         body = TEXT[lang]["no_text"]
-    return f"🌿 <b>{plant_id}. {name}</b>\n\n{body}\n\n👤 {TEXT[lang]['about'].split()[1] if lang=='kk' else ('Автор' if lang=='ru' else 'Author')}: {AUTHOR}\n📚 {TEXT[lang]['source']}"
+    group_label = {"kk": "Топ", "ru": "Группа", "en": "Group"}[lang]
+    return f"🌿 <b>{plant_id}. {name}</b>\n\n{body}\n\n👥 {group_label}: {AUTHOR}\n📚 {TEXT[lang]['source']}"
 
 
 def chunks(text: str, limit: int = 3900):
@@ -382,34 +383,56 @@ async def search_message(message: Message):
     await message.answer("🔎", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
 
 
-async def health_server():
+async def build_web_app():
     from aiohttp import web
+    from aiogram.types import Update
+
+    bot = Bot(BOT_TOKEN)
     app = web.Application()
+    app["bot"] = bot
 
     async def health(_request):
         return web.Response(text="OK")
 
+    async def telegram_webhook(request):
+        bot = request.app["bot"]
+        try:
+            data = await request.json()
+            update = Update.model_validate(data, context={"bot": bot})
+            await dp.feed_webhook_update(bot, update)
+            return web.Response(text="OK")
+        except Exception as exc:
+            print(f"Webhook error: {exc}")
+            return web.Response(status=500, text="Webhook error")
+
+    async def on_startup(_app):
+        await bot.set_webhook(
+            "https://plantinfo-kz-bot.onrender.com/webhook",
+            drop_pending_updates=True,
+        )
+        print("Telegram webhook set.")
+
+    async def on_cleanup(_app):
+        try:
+            await bot.delete_webhook(drop_pending_updates=False)
+        finally:
+            await bot.session.close()
+            conn.close()
+
+    app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
     app.router.add_get("/", health)
     app.router.add_get("/health", health)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    try:
-        await asyncio.Event().wait()
-    finally:
-        await runner.cleanup()
+    app.router.add_post("/webhook", telegram_webhook)
+    return app
 
 
-async def main():
-    bot = Bot(BOT_TOKEN)
-    try:
-        await asyncio.gather(dp.start_polling(bot), health_server())
-    finally:
-        await bot.session.close()
-        conn.close()
+def main():
+    from aiohttp import web
+    app = asyncio.run(build_web_app())
+    web.run_app(app, host="0.0.0.0", port=PORT)
 
 
 if __name__ == "__main__":
     with suppress(KeyboardInterrupt):
-        asyncio.run(main())
+        main()
